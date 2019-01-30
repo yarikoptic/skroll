@@ -11,17 +11,13 @@ el=$(tput el)
 # skroll [--retain-matches|-m REGEXMATCHES] [--retain-misses|-M REGEXMISSES] [-n nlines]
 nlines=5
 retain_misses=
+retain_misses=a
 #retain_misses="ok *$"
 retain_matches=
-#retain_matches="fail *$"
+retain_matches="fail *$"
 
-#overwrite(){
-#    # Move up and clear.
-#    printf "$(tput cuu $1)$(tput el)"  # ok
-#    printf "$2"
-#    # Move back down.
-#    printf "$(tput cud $1)"
-#}
+nmatches=0
+nmisses=0
 
 lineno=0 # more fail
 ring=""  # fail
@@ -29,7 +25,8 @@ ring=""  # fail
 scroll_the_ring() {
   # temp shortcut -- we don't know how many lines in the ring at the beginning
   # so for now just do for every line in there
-  printf "$ring" | while read line_; do
+  # \n for the status line
+  printf "$ring\n" | while read line_; do
     printf "$(tput cuu 1)${el}"
   done
 }
@@ -43,9 +40,11 @@ while IFS= read -r line; do  #ok
   retain=
   if [ ! -z "$retain_matches" ] && printf "$line_pristine" | grep -q "$retain_matches"; then
      retain=1
+     nmatches=$(($nmatches + 1))
   fi
-  if [ ! -z "$retain_misses" ] && ! { printf "$line_pristine" | grep -q "$retain_misses"; } then
+  if [ -z "$retain" ] && [ ! -z "$retain_misses" ] && ! { printf "$line_pristine" | grep -q "$retain_misses"; } then
      retain=1
+     nmisses=$(($nmisses + 1))
   fi
   
   # go to the top
@@ -67,6 +66,9 @@ while IFS= read -r line; do  #ok
   printf "$ring" | while read line; do
      printf "$line\n"
   done
-  sleep 0.01
+  # print the status
+  #printf "lines: $lineno retained matches: $nmatches misses: $nmisses RING: ${ring//\n/|}\n"
+  printf "lines: $lineno retained matches: $nmatches misses: $nmisses\n"
+  sleep 0.1
 done
 scroll_the_ring
