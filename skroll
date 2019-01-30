@@ -1,20 +1,72 @@
 #!/bin/bash
 
-set -e
+set -eu
 
 red=$(tput setaf 1)
 green=$(tput setaf 2)
 reset=$(tput sgr0)
+el=$(tput el)
 
-overwrite(){
-    # Move up and clear.
-    printf "$(tput cuu $1)$(tput el)"
-    printf "$2"
-    # Move back down.
-    printf "$(tput cud $1)"
+# TODO cmdline args
+# skroll [--retain-matches|-m REGEXMATCHES] [--retain-misses|-M REGEXMISSES] [-n nlines]
+nlines=5
+retain_misses=
+#retain_misses="ok *$"
+retain_matches=
+#retain_matches="fail *$"
+
+#overwrite(){
+#    # Move up and clear.
+#    printf "$(tput cuu $1)$(tput el)"  # ok
+#    printf "$2"
+#    # Move back down.
+#    printf "$(tput cud $1)"
+#}
+
+lineno=0 # more fail
+ring=""  # fail
+ 
+scroll_the_ring() {
+  # temp shortcut -- we don't know how many lines in the ring at the beginning
+  # so for now just do for every line in there
+  printf "$ring" | while read line_; do
+    printf "$(tput cuu 1)${el}"
+  done
 }
 
-printf "${red}foo${reset}\n"
-printf "${green}bar${reset}\n"
-sleep 1
-overwrite 2 "FO\n"
+while IFS= read -r line; do  #ok
+  lineno=$(($lineno + 1))
+  line_pristine="$line"
+  # TODO: make lineno optional
+  #line="${green}$lineno${reset} $line"
+  line="$lineno $line"
+  retain=
+  if [ ! -z "$retain_matches" ] && printf "$line_pristine" | grep -q "$retain_matches"; then
+     retain=1
+  fi
+  if [ ! -z "$retain_misses" ] && ! { printf "$line_pristine" | grep -q "$retain_misses"; } then
+     retain=1
+  fi
+  
+  # go to the top
+  scroll_the_ring
+
+  if [ "$retain" != 1 ]; then
+     # add to the ring
+     # retain only the nlines
+     ring=$(printf "$ring
+  $line\n" | tail -n $nlines)
+     #echo "RING: $ring"
+  else
+     # just print it
+     printf "${red}$line${reset}\n"
+  fi
+
+  # print the ring
+  inc=0
+  printf "$ring" | while read line; do
+     printf "$line\n"
+  done
+  sleep 0.01
+done
+scroll_the_ring
