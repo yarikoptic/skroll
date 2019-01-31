@@ -17,3 +17,9 @@ A very simple example use of the tool (with delay while printing each line):
 
 so you could see lines of the script scrolling while those which do not have
 'a' in them, and those which end with 'ok' being printed permanently.
+
+Disclaimer:
+
+ most likely due to current use of printf inside and scroll ring being
+ just a string, it wouldn't work correctly if output contains escaped
+ sequences such as \n etc
