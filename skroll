@@ -8,13 +8,58 @@ reset=$(tput sgr0)
 el=$(tput el)
 
 # TODO cmdline args
-# skroll [--retain-matches|-m REGEXMATCHES] [--retain-misses|-M REGEXMISSES] [-n nlines]
-nlines=5
+usage () {
+  echo "\
+skroll [-m REGEXMATCHES] [-M REGEXMISSES] [-n nlines] [-i] [-l] [-c]
+
+Pipe stdout of your command into skroll to get its output scrolled while
+some lines you would like to be retained and output without scrolling.
+
+  -m REGEX - lines which match REGEX will be retained/printed
+  -M REGEX - lines which do not match REGEX will be retained/printed
+  -n N     - number of lines to scroll 
+  -i       - start retained lines with +N indicator on how many lines
+             from previously printed
+  -l       - number lines
+  -c       - color retained output: misses green, matches red (if specified)
+"
+}
+
+nlines=5 # testing ok
 retain_misses=
-retain_misses=a
+#retain_misses=a
 #retain_misses="ok *$"
 retain_matches=
-retain_matches="fail *$"
+#retain_matches="fail *$"
+sleepsec=
+format_inc=
+format_lineno=
+format_color=
+
+declare -A colors # test ok
+
+while getopts "m:M:n:s:ilhc" opt
+do
+  case "$opt" in
+      m) retain_matches="$OPTARG";;
+      M) retain_misses="$OPTARG" ;;
+      n) nlines="$OPTARG" ;;
+      s) sleepsec="$OPTARG" ;;
+      i) format_inc=1;;
+      l) format_lineno=1;;
+      c) format_color=1;;
+      h) usage; exit 0 ;;
+      *) usage; exit 2 ;;
+  esac
+done
+
+if [ "$format_color" != '' ]; then
+  colors[miss]=${green}
+  colors[match]=${red}
+else
+  colors[match]=
+  colors[miss]=
+fi
 
 nmatches=0
 nmisses=0
@@ -26,49 +71,66 @@ scroll_the_ring() {
   # temp shortcut -- we don't know how many lines in the ring at the beginning
   # so for now just do for every line in there
   # \n for the status line
-  printf "$ring\n" | while read line_; do
+  printf "$ring" | while read line_; do
     printf "$(tput cuu 1)${el}"
   done
+  if [ $lineno -gt 1 ]; then
+    # one more for status line, which shouldn't be done if we just started
+    printf "$(tput cuu 1)${el}"
+  fi
+    
 }
 
+lastprinted=0
 while IFS= read -r line; do  #ok
   lineno=$(($lineno + 1))
   line_pristine="$line"
-  # TODO: make lineno optional
-  #line="${green}$lineno${reset} $line"
-  line="$lineno $line"
+  if [ "$format_lineno" != '' ]; then
+    line="$lineno $line"
+  fi
   retain=
   if [ ! -z "$retain_matches" ] && printf "$line_pristine" | grep -q "$retain_matches"; then
-     retain=1
+     retain=match
      nmatches=$(($nmatches + 1))
   fi
   if [ -z "$retain" ] && [ ! -z "$retain_misses" ] && ! { printf "$line_pristine" | grep -q "$retain_misses"; } then
-     retain=1
+     retain=miss
      nmisses=$(($nmisses + 1))
   fi
   
   # go to the top
   scroll_the_ring
 
-  if [ "$retain" != 1 ]; then
+  if [ "$retain" = '' ]; then
      # add to the ring
      # retain only the nlines
-     ring=$(printf "$ring
-  $line\n" | tail -n $nlines)
+     if [ "$ring" = '' ]; then
+       ring="$line"
+     else
+       ring=$(printf "$ring\n$line\n" | tail -n $nlines)
+     fi
      #echo "RING: $ring"
   else
      # just print it
-     printf "${red}$line${reset}\n"
+     l="${colors[$retain]}"
+     if [ "$format_inc" != '' ]; then
+       l+="+$(($lineno-$lastprinted)) "
+     fi
+     l+="$line${reset}"
+     printf "$l\n"
+     lastprinted=$lineno
   fi
 
   # print the ring
   inc=0
   printf "$ring" | while read line; do
-     printf "$line\n"
+     echo "$line"
   done
   # print the status
-  #printf "lines: $lineno retained matches: $nmatches misses: $nmisses RING: ${ring//\n/|}\n"
   printf "lines: $lineno retained matches: $nmatches misses: $nmisses\n"
-  sleep 0.1
+
+  if [ "$sleepsec" != "" ]; then
+    sleep $sleepsec
+  fi
 done
 scroll_the_ring
