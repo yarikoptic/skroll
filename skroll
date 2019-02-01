@@ -100,6 +100,7 @@ scroll_the_ring() {
 }
 
 lastprinted=0
+SECONDS=0
 while IFS= read -r line; do  #ok
   lineno=$(($lineno + 1))
   line_pristine="$line"
@@ -137,10 +138,15 @@ while IFS= read -r line; do  #ok
      printf "%s\n" "$ring_line"
   done
   # print the status
-  printf "lines: $lineno retained matches: $nmatches misses: $nmisses\n"
+  lps=
+  if [ $SECONDS -gt 0 ]; then
+    lps="($(($lineno/$SECONDS)) lps) "
+  fi
+  printf "lines: $lineno  elapsed: $SECONDS secs $lps retained matches: $nmatches misses: $nmisses\n"
 
   if [ "$sleepsec" != "" ]; then
     sleep $sleepsec
   fi
 done
 scroll_the_ring
+#echo "RING: ${ring[@]}"
