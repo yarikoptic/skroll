@@ -56,29 +56,47 @@ done
 if [ "$format_color" != '' ]; then
   colors[miss]=${green}
   colors[match]=${red}
+  colors[reset]=${reset}
 else
   colors[match]=
   colors[miss]=
+  colors[reset]=
 fi
 
 nmatches=0
 nmisses=0
 
 lineno=0 # more fail
-ring=""  # fail
+
+declare -a ring  # fail
+
+ring_pos=0
+# for some reason ${#ring} doesn't work inside functions - ring: unbound variable
+# so we will keep a counter on how full ring is
+ring_n=0
+
+ring_add () {
+    let "ring_pos+=1"
+    if [ $ring_pos -gt $nlines ]; then
+        let ring_pos=1
+    fi
+    if [ $ring_n -lt $nlines ]; then
+        let "ring_n+=1"
+    fi
+    ring[$ring_pos]="$1"
+}
  
 scroll_the_ring() {
-  # temp shortcut -- we don't know how many lines in the ring at the beginning
-  # so for now just do for every line in there
-  # \n for the status line
-  printf "$ring" | while read line_; do
+  for _ in "${ring[@]}"; do
     printf "$(tput cuu 1)${el}"
   done
+
   if [ $lineno -gt 1 ]; then
     # one more for status line, which shouldn't be done if we just started
     printf "$(tput cuu 1)${el}"
   fi
-    
+
+  #printf "RING(%d/%d): <%s>\n" "$ring_pos" "$ring_n" "${ring[*]}"
 }
 
 lastprinted=0
@@ -89,11 +107,11 @@ while IFS= read -r line; do  #ok
     line="$lineno $line"
   fi
   retain=
-  if [ ! -z "$retain_matches" ] && printf "$line_pristine" | grep -q "$retain_matches"; then
+  if [ ! -z "$retain_matches" ] && printf "%s\n" "$line_pristine" | grep -q "$retain_matches"; then
      retain=match
      nmatches=$(($nmatches + 1))
   fi
-  if [ -z "$retain" ] && [ ! -z "$retain_misses" ] && ! { printf "$line_pristine" | grep -q "$retain_misses"; } then
+  if [ -z "$retain" ] && [ ! -z "$retain_misses" ] && ! { printf "%s\n" "$line_pristine" | grep -q "$retain_misses"; } then
      retain=miss
      nmisses=$(($nmisses + 1))
   fi
@@ -103,28 +121,20 @@ while IFS= read -r line; do  #ok
 
   if [ "$retain" = '' ]; then
      # add to the ring
-     # retain only the nlines
-     if [ "$ring" = '' ]; then
-       ring="$line"
-     else
-       ring=$(printf "$ring\n$line\n" | tail -n $nlines)
-     fi
-     #echo "RING: $ring"
+     ring_add "$line"
   else
      # just print it
-     l="${colors[$retain]}"
+     l="$line"
      if [ "$format_inc" != '' ]; then
-       l+="+$(($lineno-$lastprinted)) "
+       l="+$(($lineno-$lastprinted)) $l"
      fi
-     l+="$line${reset}"
-     printf "$l\n"
+     printf "${colors[$retain]}%s${colors[reset]}\n" "$l"
      lastprinted=$lineno
   fi
 
   # print the ring
-  inc=0
-  printf "$ring" | while read line; do
-     echo "$line"
+  for ring_line in "${ring[@]}"; do
+     printf "%s\n" "$ring_line"
   done
   # print the status
   printf "lines: $lineno retained matches: $nmatches misses: $nmisses\n"
