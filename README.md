@@ -13,7 +13,7 @@ of the tool (run it with -h to see all options).
 
 A very simple example use of the tool (with delay while printing each line):
 
-   cat skroll | ./skroll -m 'ok *$' -M a -n 10 -s 0.01 -c -l -i
+    cat skroll | ./skroll -m 'ok *$' -M a -n 10 -s 0.01 -c -l -i
 
 so you could see lines of the script scrolling while those which do not have
 'a' in them, and those which end with 'ok' being printed permanently.
